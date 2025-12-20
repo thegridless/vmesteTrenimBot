@@ -8,6 +8,7 @@ from telebot.types import Message
 
 from api_client import api_client
 from keyboards import get_main_menu_keyboard
+from utils import safe_handler
 
 
 def register_start_handlers(bot: TeleBot):
@@ -17,8 +18,10 @@ def register_start_handlers(bot: TeleBot):
     Args:
         bot: Экземпляр TeleBot
     """
+    safe = safe_handler(bot)
 
     @bot.message_handler(commands=["start"])
+    @safe
     def cmd_start(message: Message):
         """Обработчик команды /start."""
         user = message.from_user
@@ -33,13 +36,23 @@ def register_start_handlers(bot: TeleBot):
             )
             logger.debug(f"Пользователь получен/создан: {api_user}")
 
-            bot.send_message(
-                message.chat.id,
-                f"👋 Привет, <b>{api_user['first_name']}</b>!\n\n"
-                "Я помогу найти компанию для совместных тренировок.\n"
-                "Выбери действие:",
-                reply_markup=get_main_menu_keyboard(),
-            )
+            # Проверяем, заполнен ли профиль
+            if not api_user.get("age") or not api_user.get("city"):
+                bot.send_message(
+                    message.chat.id,
+                    f"👋 Привет, <b>{api_user['first_name']}</b>!\n\n"
+                    "Для начала работы нужно заполнить профиль.\n"
+                    "Используйте /register для регистрации.",
+                    reply_markup=get_main_menu_keyboard(),
+                )
+            else:
+                bot.send_message(
+                    message.chat.id,
+                    f"👋 Привет, <b>{api_user['first_name']}</b>!\n\n"
+                    "Я помогу найти компанию для совместных тренировок.\n"
+                    "Выбери действие:",
+                    reply_markup=get_main_menu_keyboard(),
+                )
         except Exception as e:
             logger.error(f"Ошибка при регистрации пользователя {user.id}: {e}")
             bot.send_message(
@@ -48,6 +61,7 @@ def register_start_handlers(bot: TeleBot):
             )
 
     @bot.message_handler(commands=["help"])
+    @safe
     def cmd_help(message: Message):
         """Обработчик команды /help."""
         user = message.from_user
@@ -61,97 +75,9 @@ def register_start_handlers(bot: TeleBot):
             "🔹 <b>Профиль</b> — информация о вас\n\n"
             "Команды:\n"
             "/start — главное меню\n"
+            "/register — регистрация/заполнение профиля\n"
+            "/applications — заявки на мои тренировки\n"
+            "/cancel — отменить текущий процесс\n"
             "/help — эта справка",
-            reply_markup=get_main_menu_keyboard(),
-        )
-
-    @bot.message_handler(func=lambda m: m.text == "📋 Мои тренировки")
-    def my_events(message: Message):
-        """Показать тренировки пользователя."""
-        user = message.from_user
-        logger.info(f"👤 Команда 'Мои тренировки' от @{user.username} (id={user.id})")
-        user = api_client.get_user_by_telegram_id(message.from_user.id)
-        if not user:
-            bot.send_message(message.chat.id, "❌ Пользователь не найден. Используйте /start")
-            return
-
-        try:
-            events = api_client.get_user_events(user["id"])
-            if not events:
-                bot.send_message(
-                    message.chat.id,
-                    "📭 У вас пока нет тренировок.\n"
-                    "Создайте свою или присоединитесь к существующей!",
-                    reply_markup=get_main_menu_keyboard(),
-                )
-                return
-
-            text = "<b>📋 Ваши тренировки:</b>\n\n"
-            for event in events[:10]:
-                text += f"🏋️ <b>{event['title']}</b>\n"
-                text += f"📅 {event['date']}\n"
-                if event.get("location"):
-                    text += f"📍 {event['location']}\n"
-                text += "\n"
-
-            bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке тренировок: {e}")
-            bot.send_message(message.chat.id, "❌ Ошибка при загрузке тренировок.")
-
-    @bot.message_handler(func=lambda m: m.text == "🔍 Найти тренировку")
-    def find_events(message: Message):
-        """Показать доступные тренировки."""
-        user = message.from_user
-        logger.info(f"👤 Команда 'Найти тренировку' от @{user.username} (id={user.id})")
-        try:
-            events = api_client.get_events(limit=10)
-            if not events:
-                bot.send_message(
-                    message.chat.id,
-                    "📭 Пока нет доступных тренировок.",
-                    reply_markup=get_main_menu_keyboard(),
-                )
-                return
-
-            text = "<b>🔍 Доступные тренировки:</b>\n\n"
-            for event in events:
-                text += f"🏋️ <b>{event['title']}</b>\n"
-                text += f"📅 {event['date']}\n"
-                if event.get("location"):
-                    text += f"📍 {event['location']}\n"
-                text += "\n"
-
-            bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
-        except Exception as e:
-            logger.error(f"Ошибка при поиске тренировок: {e}")
-            bot.send_message(message.chat.id, "❌ Ошибка при загрузке тренировок.")
-
-    @bot.message_handler(func=lambda m: m.text == "👤 Профиль")
-    def profile(message: Message):
-        """Показать профиль пользователя."""
-        user_tg = message.from_user
-        logger.info(f"👤 Команда 'Профиль' от @{user_tg.username} (id={user_tg.id})")
-        user = api_client.get_user_by_telegram_id(user_tg.id)
-        if not user:
-            bot.send_message(message.chat.id, "❌ Пользователь не найден. Используйте /start")
-            return
-
-        text = "<b>👤 Ваш профиль</b>\n\n"
-        text += f"📛 Имя: {user['first_name']}\n"
-        if user.get("username"):
-            text += f"🔗 Username: @{user['username']}\n"
-        text += f"📅 Зарегистрирован: {user['created_at'][:10]}\n"
-
-        bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
-
-    @bot.message_handler(func=lambda m: m.text == "➕ Создать тренировку")
-    def create_event_start(message: Message):
-        """Начать создание тренировки (заглушка)."""
-        user = message.from_user
-        logger.info(f"👤 Команда 'Создать тренировку' от @{user.username} (id={user.id})")
-        bot.send_message(
-            message.chat.id,
-            "🚧 Функция создания тренировок в разработке.\n" "Скоро будет доступна!",
             reply_markup=get_main_menu_keyboard(),
         )

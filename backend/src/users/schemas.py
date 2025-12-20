@@ -16,9 +16,12 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Схема для создания пользователя."""
+    """Схема для создания пользователя (регистрация)."""
 
-    pass
+    age: int | None = None
+    gender: str | None = None  # male, female, other
+    city: str | None = None
+    sports: list[str] | None = None  # Список видов спорта
 
 
 class UserUpdate(BaseModel):
@@ -26,12 +29,24 @@ class UserUpdate(BaseModel):
 
     username: str | None = None
     first_name: str | None = None
+    age: int | None = None
+    gender: str | None = None
+    city: str | None = None
+    sports: list[str] | None = None
+    note: str | None = None
+    avatar_url: str | None = None
 
 
 class UserResponse(UserBase):
     """Схема ответа с данными пользователя."""
 
     id: int
+    age: int | None = None
+    gender: str | None = None
+    city: str | None = None
+    sports: list[str] | None = None
+    note: str | None = None
+    avatar_url: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

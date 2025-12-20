@@ -20,6 +20,12 @@ class EventCreate(EventBase):
     """Схема для создания мероприятия."""
 
     creator_id: int
+    latitude: float | None = None  # Геолокация
+    longitude: float | None = None  # Геолокация
+    sport_type: str | None = None  # Вид спорта
+    max_participants: int | None = None  # Количество человек
+    fee: float | None = None  # Взносы
+    note: str | None = None  # Примечание создателя
 
 
 class EventUpdate(BaseModel):
@@ -29,6 +35,12 @@ class EventUpdate(BaseModel):
     description: str | None = None
     date: datetime | None = None
     location: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    sport_type: str | None = None
+    max_participants: int | None = None
+    fee: float | None = None
+    note: str | None = None
 
 
 class EventResponse(EventBase):
@@ -36,6 +48,12 @@ class EventResponse(EventBase):
 
     id: int
     creator_id: int
+    latitude: float | None = None
+    longitude: float | None = None
+    sport_type: str | None = None
+    max_participants: int | None = None
+    fee: float | None = None
+    note: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -76,3 +94,46 @@ class PaginatedResponse(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+# --- Заявки на участие ---
+
+
+class EventApplicationBase(BaseModel):
+    """Базовые поля заявки на участие."""
+
+    user_id: int
+    event_id: int
+
+
+class EventApplicationCreate(EventApplicationBase):
+    """Схема для создания заявки на участие."""
+
+    pass
+
+
+class EventApplicationResponse(EventApplicationBase):
+    """Схема ответа с данными заявки."""
+
+    id: int
+    status: str  # pending, approved, rejected
+    applied_at: datetime
+    reviewed_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EventApplicationUpdate(BaseModel):
+    """Схема для обновления статуса заявки."""
+
+    status: str  # approved, rejected
+
+
+class EventSearchParams(BaseModel):
+    """Параметры поиска событий."""
+
+    sport_type: str | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    skip: int = 0
+    limit: int = 100

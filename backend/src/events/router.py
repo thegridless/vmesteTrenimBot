@@ -2,6 +2,7 @@
 API роутер для мероприятий.
 """
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,9 +10,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.events import crud
+from src.events.applications_crud import (
+    create_application,
+    get_application_by_id,
+    get_event_applications,
+    get_user_applications,
+    update_application_status,
+)
 from src.events.schemas import (
+    EventApplicationCreate,
+    EventApplicationResponse,
+    EventApplicationUpdate,
     EventCreate,
     EventResponse,
+    EventSearchParams,
     EventUpdate,
     EventWithParticipants,
     ParticipantResponse,
@@ -29,9 +41,36 @@ async def get_events(
     skip: int = 0,
     limit: int = 100,
     creator_id: int | None = None,
+    sport_type: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ):
-    """Получить список мероприятий."""
-    return await crud.get_events(session, skip=skip, limit=limit, creator_id=creator_id)
+    """Получить список мероприятий с фильтрацией."""
+    return await crud.get_events(
+        session,
+        skip=skip,
+        limit=limit,
+        creator_id=creator_id,
+        sport_type=sport_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@router.post("/search", response_model=list[EventResponse])
+async def search_events(
+    search_params: EventSearchParams,
+    session: SessionDep,
+):
+    """Поиск мероприятий по параметрам."""
+    return await crud.get_events(
+        session,
+        skip=search_params.skip,
+        limit=search_params.limit,
+        sport_type=search_params.sport_type,
+        date_from=search_params.date_from,
+        date_to=search_params.date_to,
+    )
 
 
 @router.get("/{event_id}", response_model=EventWithParticipants)
@@ -167,3 +206,99 @@ async def get_user_events(
             detail="Пользователь не найден",
         )
     return await crud.get_user_events(session, user_id, skip=skip, limit=limit)
+
+
+# --- Заявки на участие ---
+
+
+@router.post(
+    "/{event_id}/apply",
+    response_model=EventApplicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def apply_to_event(event_id: int, user_id: int, session: SessionDep):
+    """Подать заявку на участие в мероприятии."""
+    event = await crud.get_event_by_id(session, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Мероприятие не найдено",
+        )
+    user = await get_user_by_id(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден",
+        )
+
+    try:
+        application = await create_application(
+            session,
+            EventApplicationCreate(event_id=event_id, user_id=user_id),
+        )
+        return application
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get("/{event_id}/applications", response_model=list[EventApplicationResponse])
+async def get_event_applications_list(
+    event_id: int,
+    session: SessionDep,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """Получить заявки на мероприятие."""
+    event = await crud.get_event_by_id(session, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Мероприятие не найдено",
+        )
+    return await get_event_applications(session, event_id, status=status, skip=skip, limit=limit)
+
+
+@router.get("/applications/user/{user_id}", response_model=list[EventApplicationResponse])
+async def get_user_applications_list(
+    user_id: int,
+    session: SessionDep,
+    status: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """Получить заявки пользователя."""
+    user = await get_user_by_id(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден",
+        )
+    return await get_user_applications(session, user_id, status=status, skip=skip, limit=limit)
+
+
+@router.patch("/applications/{application_id}", response_model=EventApplicationResponse)
+async def review_application(
+    application_id: int,
+    application_update: EventApplicationUpdate,
+    session: SessionDep,
+):
+    """Рассмотреть заявку (подтвердить/отклонить)."""
+    application = await get_application_by_id(session, application_id)
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заявка не найдена",
+        )
+
+    try:
+        updated = await update_application_status(session, application, application_update.status)
+        return updated
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )

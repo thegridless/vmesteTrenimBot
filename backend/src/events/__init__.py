@@ -1,4 +1,4 @@
-from src.events.models import Event, EventParticipant
+from src.events.models import Event, EventApplication, EventParticipant
 from src.events.router import router
 
-__all__ = ["Event", "EventParticipant", "router"]
+__all__ = ["Event", "EventParticipant", "EventApplication", "router"]

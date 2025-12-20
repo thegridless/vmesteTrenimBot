@@ -65,6 +65,10 @@ class APIClient:
         telegram_id: int,
         username: str | None,
         first_name: str,
+        age: int | None = None,
+        gender: str | None = None,
+        city: str | None = None,
+        sports: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Получить или создать пользователя.
@@ -73,6 +77,10 @@ class APIClient:
             telegram_id: ID пользователя в Telegram
             username: Username
             first_name: Имя
+            age: Возраст
+            gender: Пол
+            city: Город
+            sports: Виды спорта
 
         Returns:
             Данные пользователя
@@ -84,6 +92,10 @@ class APIClient:
                 "telegram_id": telegram_id,
                 "username": username,
                 "first_name": first_name,
+                "age": age,
+                "gender": gender,
+                "city": city,
+                "sports": sports,
             },
         )
 
@@ -104,6 +116,36 @@ class APIClient:
                 return None
             raise
 
+    def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
+        """
+        Получить пользователя по ID из БД.
+
+        Args:
+            user_id: ID пользователя в БД
+
+        Returns:
+            Данные пользователя или None
+        """
+        try:
+            return self._request("GET", f"/users/{user_id}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+
+    def update_user(self, user_id: int, **kwargs) -> dict[str, Any]:
+        """
+        Обновить данные пользователя.
+
+        Args:
+            user_id: ID пользователя
+            **kwargs: Поля для обновления
+
+        Returns:
+            Обновлённые данные пользователя
+        """
+        return self._request("PATCH", f"/users/{user_id}", json=kwargs)
+
     # --- Events ---
 
     def get_events(
@@ -111,6 +153,9 @@ class APIClient:
         skip: int = 0,
         limit: int = 10,
         creator_id: int | None = None,
+        sport_type: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Получить список мероприятий.
@@ -119,6 +164,9 @@ class APIClient:
             skip: Сколько пропустить
             limit: Максимум записей
             creator_id: Фильтр по создателю
+            sport_type: Фильтр по виду спорта
+            date_from: Фильтр по дате от (ISO)
+            date_to: Фильтр по дате до (ISO)
 
         Returns:
             Список мероприятий
@@ -126,7 +174,46 @@ class APIClient:
         params = {"skip": skip, "limit": limit}
         if creator_id:
             params["creator_id"] = creator_id
+        if sport_type:
+            params["sport_type"] = sport_type
+        if date_from:
+            params["date_from"] = date_from
+        if date_to:
+            params["date_to"] = date_to
         return self._request("GET", "/events", params=params)
+
+    def search_events(
+        self,
+        sport_type: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Поиск мероприятий.
+
+        Args:
+            sport_type: Вид спорта
+            date_from: Дата от (ISO)
+            date_to: Дата до (ISO)
+            skip: Сколько пропустить
+            limit: Максимум записей
+
+        Returns:
+            Список мероприятий
+        """
+        return self._request(
+            "POST",
+            "/events/search",
+            json={
+                "sport_type": sport_type,
+                "date_from": date_from,
+                "date_to": date_to,
+                "skip": skip,
+                "limit": limit,
+            },
+        )
 
     def get_event(self, event_id: int) -> dict[str, Any] | None:
         """
@@ -152,6 +239,12 @@ class APIClient:
         creator_id: int,
         description: str | None = None,
         location: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        sport_type: str | None = None,
+        max_participants: int | None = None,
+        fee: float | None = None,
+        note: str | None = None,
     ) -> dict[str, Any]:
         """
         Создать мероприятие.
@@ -162,6 +255,12 @@ class APIClient:
             creator_id: ID создателя
             description: Описание
             location: Место
+            latitude: Широта
+            longitude: Долгота
+            sport_type: Вид спорта
+            max_participants: Максимум участников
+            fee: Взнос
+            note: Примечание
 
         Returns:
             Созданное мероприятие
@@ -175,6 +274,12 @@ class APIClient:
                 "creator_id": creator_id,
                 "description": description,
                 "location": location,
+                "latitude": latitude,
+                "longitude": longitude,
+                "sport_type": sport_type,
+                "max_participants": max_participants,
+                "fee": fee,
+                "note": note,
             },
         )
 
@@ -240,7 +345,7 @@ class APIClient:
 
     def get_user_events(self, user_id: int) -> list[dict[str, Any]]:
         """
-        Получить мероприятия пользователя.
+        Получить мероприятия пользователя (где он участник).
 
         Args:
             user_id: ID пользователя
@@ -249,6 +354,89 @@ class APIClient:
             Список мероприятий
         """
         return self._request("GET", f"/events/user/{user_id}")
+
+    def get_created_events(self, creator_id: int) -> list[dict[str, Any]]:
+        """
+        Получить созданные пользователем мероприятия.
+
+        Args:
+            creator_id: ID создателя
+
+        Returns:
+            Список мероприятий
+        """
+        return self.get_events(creator_id=creator_id, limit=100)
+
+    # --- Заявки на участие ---
+
+    def apply_to_event(self, event_id: int, user_id: int) -> dict[str, Any] | None:
+        """
+        Подать заявку на участие в мероприятии.
+
+        Args:
+            event_id: ID мероприятия
+            user_id: ID пользователя
+
+        Returns:
+            Данные заявки или None если ошибка
+        """
+        try:
+            return self._request("POST", f"/events/{event_id}/apply", params={"user_id": user_id})
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 400:
+                return None
+            raise
+
+    def get_event_applications(
+        self, event_id: int, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        """
+        Получить заявки на мероприятие.
+
+        Args:
+            event_id: ID мероприятия
+            status: Фильтр по статусу (pending, approved, rejected)
+
+        Returns:
+            Список заявок
+        """
+        params = {}
+        if status:
+            params["status"] = status
+        return self._request("GET", f"/events/{event_id}/applications", params=params)
+
+    def get_user_applications(
+        self, user_id: int, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        """
+        Получить заявки пользователя.
+
+        Args:
+            user_id: ID пользователя
+            status: Фильтр по статусу
+
+        Returns:
+            Список заявок
+        """
+        params = {}
+        if status:
+            params["status"] = status
+        return self._request("GET", f"/events/applications/user/{user_id}", params=params)
+
+    def review_application(self, application_id: int, status: str) -> dict[str, Any]:
+        """
+        Рассмотреть заявку (подтвердить/отклонить).
+
+        Args:
+            application_id: ID заявки
+            status: Статус (approved или rejected)
+
+        Returns:
+            Обновлённая заявка
+        """
+        return self._request(
+            "PATCH", f"/events/applications/{application_id}", json={"status": status}
+        )
 
     def close(self):
         """Закрыть соединение."""

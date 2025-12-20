@@ -2,7 +2,9 @@
 CRUD операции для мероприятий и участников.
 """
 
-from sqlalchemy import func, select
+from datetime import datetime
+
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.events.models import Event, EventParticipant
@@ -28,23 +30,41 @@ async def get_events(
     skip: int = 0,
     limit: int = 100,
     creator_id: int | None = None,
+    sport_type: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> list[Event]:
     """
-    Получить список мероприятий с пагинацией.
+    Получить список мероприятий с пагинацией и фильтрацией.
 
     Args:
         session: Сессия БД
         skip: Сколько записей пропустить
         limit: Максимальное количество записей
         creator_id: Фильтр по создателю (опционально)
+        sport_type: Фильтр по виду спорта (опционально)
+        date_from: Фильтр по дате от (опционально)
+        date_to: Фильтр по дате до (опционально)
 
     Returns:
         Список мероприятий
     """
     query = select(Event)
+    conditions = []
+
     if creator_id is not None:
-        query = query.where(Event.creator_id == creator_id)
-    query = query.order_by(Event.date.desc()).offset(skip).limit(limit)
+        conditions.append(Event.creator_id == creator_id)
+    if sport_type is not None:
+        conditions.append(Event.sport_type == sport_type)
+    if date_from is not None:
+        conditions.append(Event.date >= date_from)
+    if date_to is not None:
+        conditions.append(Event.date <= date_to)
+
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    query = query.order_by(Event.date.asc()).offset(skip).limit(limit)
     result = await session.execute(query)
     return list(result.scalars().all())
 

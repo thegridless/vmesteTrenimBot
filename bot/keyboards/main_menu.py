@@ -21,4 +21,5 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
         KeyboardButton("➕ Создать тренировку"),
         KeyboardButton("👤 Профиль"),
     )
+    keyboard.add(KeyboardButton("📝 Заявки"))
     return keyboard

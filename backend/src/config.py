@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     api_port: int = 8000
     debug: bool = False
 
+    # Admin панель
+    admin_username: str = "admin"
+    admin_password: str = "admin"
+    admin_secret_key: str = "change-me-in-production-secret-key-12345"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

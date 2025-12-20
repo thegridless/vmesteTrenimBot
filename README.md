@@ -14,7 +14,7 @@ vmesteTrenimBot/
 
 ## 🛠 Технологии
 
-- **Backend**: FastAPI, SQLAlchemy, Alembic, Pydantic
+- **Backend**: FastAPI, SQLAlchemy, Alembic, Pydantic, SQLAdmin
 - **База данных**: PostgreSQL (Docker), SQLite (локальная разработка)
 - **Bot**: pyTelegramBotAPI, httpx
 - **Логирование**: Loguru
@@ -125,6 +125,9 @@ docker-compose up --build
 | `DEBUG` | Режим отладки | `false` |
 | `API_HOST` | Хост API | `0.0.0.0` |
 | `API_PORT` | Порт API | `8000` |
+| `ADMIN_USERNAME` | Логин админ-панели | `admin` |
+| `ADMIN_PASSWORD` | Пароль админ-панели | `admin` |
+| `ADMIN_SECRET_KEY` | Секретный ключ для сессий | `change-me-in-production-secret-key-12345` |
 
 ### Bot
 
