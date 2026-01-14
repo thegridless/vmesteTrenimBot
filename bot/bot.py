@@ -3,9 +3,8 @@
 """
 
 import telebot
-from telebot import apihelper
-
 from config import settings
+from telebot import apihelper
 
 # Включаем middleware (необходимо до создания экземпляра бота)
 apihelper.ENABLE_MIDDLEWARE = True

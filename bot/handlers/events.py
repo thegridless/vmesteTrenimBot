@@ -2,15 +2,16 @@
 Обработчики для работы с событиями: создание, поиск, заявки.
 """
 
+import asyncio
 from datetime import datetime
 
+from api_client import api_client
+from common import format_event_text, format_user_info, get_sport_keyboard
+from keyboards import get_main_menu_keyboard
 from loguru import logger
+from states import EventCreationStates
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-
-from api_client import api_client
-from keyboards import get_main_menu_keyboard
-from states import EventCreationStates
 from utils import (
     check_state,
     create_callback_state_checker,
@@ -44,48 +45,30 @@ def register_events_handlers(bot: TeleBot):
         bot, EventCreationStates.waiting_sport_type, "event_sport_"
     )
 
-    def get_sport_types_keyboard() -> InlineKeyboardMarkup:
-        """Клавиатура выбора вида спорта."""
-        sports = [
-            "Футбол",
-            "Баскетбол",
-            "Волейбол",
-            "Теннис",
-            "Бег",
-            "Йога",
-            "Плавание",
-            "Велоспорт",
-            "Тренажёрный зал",
-            "Бокс",
-        ]
-        keyboard = InlineKeyboardMarkup(row_width=2)
-        for sport in sports:
-            keyboard.add(InlineKeyboardButton(sport, callback_data=f"event_sport_{sport}"))
-        return keyboard
-
     @bot.message_handler(func=lambda m: m.text == "➕ Создать тренировку")
     @safe
     def create_event_start(message: Message):
         """Начать создание события."""
-        user_tg = message.from_user
-        logger.info(f"👤 Команда 'Создать тренировку' от @{user_tg.username} (id={user_tg.id})")
+        asyncio.run(_create_event_start_async(message))
 
-        user = api_client.get_user_by_telegram_id(user_tg.id)
+    async def _create_event_start_async(message: Message):
+        """Async реализация create_event_start."""
+        logger.info(f"➕ Создание тренировки от @{message.from_user.username or message.from_user.id}")
+
+        user = await api_client.get_user_by_telegram_id(message.from_user.id)
         if not user:
             bot.send_message(message.chat.id, "❌ Пользователь не найден. Используйте /start")
             return
 
-        # Проверяем заполненность профиля
         if not user.get("age") or not user.get("city"):
             bot.send_message(
                 message.chat.id,
-                "⚠️ Сначала заполните профиль!\n" "Используйте /register для регистрации.",
+                "⚠️ Сначала заполните профиль!\nИспользуйте /register для регистрации.",
                 reply_markup=get_main_menu_keyboard(),
             )
             return
 
-        bot.set_state(user_tg.id, EventCreationStates.waiting_title, message.chat.id)
-        logger.info(f"✅ Состояние установлено: {bot.get_state(user_tg.id, message.chat.id)}")
+        bot.set_state(message.from_user.id, EventCreationStates.waiting_title, message.chat.id)
         bot.send_message(
             message.chat.id,
             "📝 Создание новой тренировки\n\n"
@@ -97,30 +80,12 @@ def register_events_handlers(bot: TeleBot):
     @safe
     def process_event_title(message: Message):
         """Обработка названия события."""
-        logger.info(
-            f"🎯 process_event_title вызван для @{message.from_user.username} (id={message.from_user.id}): text='{message.text}'"
-        )
-
-        if not message.text:
-            bot.send_message(message.chat.id, "❌ Пожалуйста, отправьте название тренировки")
-            return
-
-        try:
-            title = message.text.strip()
-            if len(title) < 3:
-                bot.send_message(
-                    message.chat.id, "❌ Название слишком короткое (минимум 3 символа)"
-                )
-                return
-        except Exception as e:
-            logger.error(f"Ошибка при обработке названия: {e}")
-            bot.send_message(
-                message.chat.id, "❌ Произошла ошибка. Попробуйте ещё раз или используйте /cancel"
-            )
+        if not message.text or len(message.text.strip()) < 3:
+            bot.send_message(message.chat.id, "❌ Название должно быть не менее 3 символов")
             return
 
         with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-            data["title"] = title
+            data["title"] = message.text.strip()
 
         bot.set_state(message.from_user.id, EventCreationStates.waiting_date, message.chat.id)
         bot.send_message(
@@ -134,20 +99,12 @@ def register_events_handlers(bot: TeleBot):
     @safe
     def process_event_date(message: Message):
         """Обработка даты события."""
-        logger.info(
-            f"🎯 process_event_date вызван для @{message.from_user.username} (id={message.from_user.id}): text='{message.text}'"
-        )
-
         if not message.text:
-            bot.send_message(
-                message.chat.id, "❌ Пожалуйста, отправьте дату в формате ДД.ММ.ГГГГ ЧЧ:ММ"
-            )
+            bot.send_message(message.chat.id, "❌ Отправьте дату в формате ДД.ММ.ГГГГ ЧЧ:ММ")
             return
 
         try:
-            date_str = message.text.strip()
-            # Парсим формат ДД.ММ.ГГГГ ЧЧ:ММ
-            date_obj = datetime.strptime(date_str, "%d.%m.%Y %H:%M")
+            date_obj = datetime.strptime(message.text.strip(), "%d.%m.%Y %H:%M")
             if date_obj < datetime.now():
                 bot.send_message(message.chat.id, "❌ Дата не может быть в прошлом")
                 return
@@ -155,24 +112,12 @@ def register_events_handlers(bot: TeleBot):
             with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
                 data["date"] = date_obj.isoformat()
 
-            bot.set_state(
-                message.from_user.id, EventCreationStates.waiting_location, message.chat.id
-            )
-            bot.send_message(
-                message.chat.id,
-                "📍 Введите место проведения тренировки\n" "(или отправьте геолокацию)",
-            )
+            bot.set_state(message.from_user.id, EventCreationStates.waiting_location, message.chat.id)
+            bot.send_message(message.chat.id, "📍 Введите место проведения тренировки\n(или отправьте геолокацию)")
         except ValueError:
             bot.send_message(
                 message.chat.id,
-                "❌ Неверный формат даты\n"
-                "Используйте: ДД.ММ.ГГГГ ЧЧ:ММ\n"
-                "Или используйте /cancel для отмены",
-            )
-        except Exception as e:
-            logger.error(f"Ошибка при обработке даты: {e}")
-            bot.send_message(
-                message.chat.id, "❌ Произошла ошибка. Попробуйте ещё раз или используйте /cancel"
+                "❌ Неверный формат даты. Используйте: ДД.ММ.ГГГГ ЧЧ:ММ\nНапример: 25.12.2024 18:00",
             )
 
     def check_waiting_location_with_types(message: Message) -> bool:
@@ -193,12 +138,7 @@ def register_events_handlers(bot: TeleBot):
     @safe
     def process_event_location(message: Message):
         """Обработка места проведения."""
-        logger.info(
-            f"🎯 process_event_location вызван для @{message.from_user.username} (id={message.from_user.id})"
-        )
-        location = None
-        latitude = None
-        longitude = None
+        location = latitude = longitude = None
 
         if message.location:
             latitude = message.location.latitude
@@ -212,115 +152,60 @@ def register_events_handlers(bot: TeleBot):
             return
 
         with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-            data["location"] = location
-            data["latitude"] = latitude
-            data["longitude"] = longitude
+            data.update({"location": location, "latitude": latitude, "longitude": longitude})
 
         bot.set_state(message.from_user.id, EventCreationStates.waiting_sport_type, message.chat.id)
-        bot.send_message(
-            message.chat.id,
-            "🏋️ Выберите вид спорта:",
-            reply_markup=get_sport_types_keyboard(),
-        )
+        bot.send_message(message.chat.id, "🏋️ Выберите вид спорта:", reply_markup=get_sport_keyboard("event_sport_"))
 
     @bot.callback_query_handler(func=check_event_sport_callback)
     @safe_cb
     def process_event_sport_type(call):
         """Обработка выбора вида спорта."""
-        logger.info(
-            f"🎯 process_event_sport_type вызван для @{call.from_user.username} (id={call.from_user.id}): data={call.data}"
-        )
         sport_type = call.data.replace("event_sport_", "")
 
         with bot.retrieve_data(call.from_user.id, call.message.chat.id) as data:
             data["sport_type"] = sport_type
 
-        bot.answer_callback_query(call.id, f"✅ Выбран: {sport_type}")
-        bot.set_state(
-            call.from_user.id, EventCreationStates.waiting_max_participants, call.message.chat.id
-        )
+        bot.answer_callback_query(call.id, f"✅ {sport_type}")
+        bot.set_state(call.from_user.id, EventCreationStates.waiting_max_participants, call.message.chat.id)
         bot.send_message(
             call.message.chat.id,
-            "👥 Сколько человек нужно для тренировки?\n"
-            "(отправьте число или '0' если без ограничений)",
+            "👥 Сколько человек нужно?\n(отправьте число или '0' если без ограничений)",
         )
 
     @bot.message_handler(func=check_waiting_max_participants)
     @safe
     def process_event_max_participants(message: Message):
         """Обработка количества участников."""
-        logger.info(
-            f"🎯 process_event_max_participants вызван для @{message.from_user.username} (id={message.from_user.id}): text='{message.text}'"
-        )
-
-        if not message.text:
-            bot.send_message(message.chat.id, "❌ Пожалуйста, отправьте число")
-            return
-
         try:
             max_participants = int(message.text)
-            if max_participants < 0:
-                max_participants = None
-        except ValueError:
-            bot.send_message(
-                message.chat.id, "❌ Пожалуйста, введите число или '0' если без ограничений"
-            )
-            return
-        except Exception as e:
-            logger.error(f"Ошибка при обработке количества участников: {e}")
-            bot.send_message(
-                message.chat.id, "❌ Произошла ошибка. Попробуйте ещё раз или используйте /cancel"
-            )
+            max_participants = None if max_participants <= 0 else max_participants
+        except (ValueError, AttributeError):
+            bot.send_message(message.chat.id, "❌ Введите число или '0' если без ограничений")
             return
 
         with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
             data["max_participants"] = max_participants
 
         bot.set_state(message.from_user.id, EventCreationStates.waiting_fee, message.chat.id)
-        bot.send_message(
-            message.chat.id,
-            "💰 Есть ли взнос для участников?\n"
-            "(отправьте сумму в рублях или '0' если бесплатно)",
-        )
+        bot.send_message(message.chat.id, "💰 Есть ли взнос?\n(отправьте сумму в рублях или '0' если бесплатно)")
 
     @bot.message_handler(func=check_waiting_fee)
     @safe
     def process_event_fee(message: Message):
         """Обработка взноса."""
-        logger.info(
-            f"🎯 process_event_fee вызван для @{message.from_user.username} (id={message.from_user.id}): text='{message.text}'"
-        )
-
-        if not message.text:
-            bot.send_message(message.chat.id, "❌ Пожалуйста, отправьте сумму или '0'")
-            return
-
         try:
             fee = float(message.text.replace(",", "."))
-            if fee < 0:
-                fee = None
-        except ValueError:
-            bot.send_message(
-                message.chat.id,
-                "❌ Пожалуйста, введите число (сумму взноса) или '0' если бесплатно",
-            )
-            return
-        except Exception as e:
-            logger.error(f"Ошибка при обработке взноса: {e}")
-            bot.send_message(
-                message.chat.id, "❌ Произошла ошибка. Попробуйте ещё раз или используйте /cancel"
-            )
+            fee = None if fee <= 0 else fee
+        except (ValueError, AttributeError):
+            bot.send_message(message.chat.id, "❌ Введите сумму или '0' если бесплатно")
             return
 
         with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
             data["fee"] = fee
 
         bot.set_state(message.from_user.id, EventCreationStates.waiting_note, message.chat.id)
-        bot.send_message(
-            message.chat.id,
-            "📝 Добавьте примечание (опционально)\n"
-            "Или отправьте 'пропустить' чтобы не добавлять",
-        )
+        bot.send_message(message.chat.id, "📝 Добавьте примечание (опционально)\nИли отправьте 'пропустить'")
 
     @bot.message_handler(func=check_waiting_note)
     @safe

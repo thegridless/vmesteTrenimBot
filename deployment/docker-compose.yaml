@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: vmeste_postgres
+    env_file:
+      - .env  # Симлинк на корневой .env файл
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -21,9 +23,11 @@ services:
 
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
     container_name: vmeste_backend
+    env_file:
+      - .env  # Симлинк на корневой .env файл
     ports:
       - "8000:8000"
     environment:
@@ -41,9 +45,11 @@ services:
 
   bot:
     build:
-      context: ../bot
-      dockerfile: Dockerfile
-    container_name: vmeste_bot
+      context: ..
+      dockerfile: bot/Dockerfile
+    # Не указываем container_name для поддержки scaling через docker-compose scale
+    env_file:
+      - .env  # Симлинк на корневой .env файл
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - API_BASE_URL=http://backend:8000/api/v1
@@ -52,6 +58,9 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    # Для масштабирования используйте:
+    # - Переменную окружения: BOT_REPLICAS=3 ./start.sh
+    # - Или напрямую: docker-compose up --scale bot=N
 
 volumes:
   postgres_data:

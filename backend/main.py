@@ -14,13 +14,8 @@ from src.config import settings
 from src.database import Base, engine
 from src.events.router import router as events_router
 
-# Настраиваем логгер
-from src.logger import setup_logger
-
 # Импортируем модели для создания таблиц
 from src.users.router import router as users_router
-
-setup_logger()
 
 
 @asynccontextmanager

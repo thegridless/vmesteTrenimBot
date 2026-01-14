@@ -11,13 +11,13 @@ from config import settings
 
 
 class APIClient:
-    """Клиент для работы с Backend API."""
+    """Асинхронный клиент для работы с Backend API."""
 
     def __init__(self):
         self.base_url = settings.api_base_url
-        self.client = httpx.Client(timeout=30.0, follow_redirects=True)
+        self.client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
 
-    def _request(
+    async def _request(
         self,
         method: str,
         endpoint: str,
@@ -39,10 +39,9 @@ class APIClient:
             httpx.HTTPStatusError: HTTP ошибка
         """
         url = f"{self.base_url}{endpoint}"
-        logger.debug(f"API запрос: {method} {url}")
 
         try:
-            response = self.client.request(method, url, **kwargs)
+            response = await self.client.request(method, url, **kwargs)
             response.raise_for_status()
 
             if response.status_code == 204:
@@ -60,7 +59,7 @@ class APIClient:
 
     # --- Users ---
 
-    def get_or_create_user(
+    async def get_or_create_user(
         self,
         telegram_id: int,
         username: str | None,
@@ -85,7 +84,7 @@ class APIClient:
         Returns:
             Данные пользователя
         """
-        return self._request(
+        return await self._request(
             "POST",
             "/users/get-or-create",
             json={
@@ -99,7 +98,7 @@ class APIClient:
             },
         )
 
-    def get_user_by_telegram_id(self, telegram_id: int) -> dict[str, Any] | None:
+    async def get_user_by_telegram_id(self, telegram_id: int) -> dict[str, Any] | None:
         """
         Получить пользователя по Telegram ID.
 
@@ -110,13 +109,13 @@ class APIClient:
             Данные пользователя или None
         """
         try:
-            return self._request("GET", f"/users/telegram/{telegram_id}")
+            return await self._request("GET", f"/users/telegram/{telegram_id}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
             raise
 
-    def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
+    async def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         """
         Получить пользователя по ID из БД.
 
@@ -127,13 +126,13 @@ class APIClient:
             Данные пользователя или None
         """
         try:
-            return self._request("GET", f"/users/{user_id}")
+            return await self._request("GET", f"/users/{user_id}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
             raise
 
-    def update_user(self, user_id: int, **kwargs) -> dict[str, Any]:
+    async def update_user(self, user_id: int, **kwargs) -> dict[str, Any]:
         """
         Обновить данные пользователя.
 
@@ -144,11 +143,11 @@ class APIClient:
         Returns:
             Обновлённые данные пользователя
         """
-        return self._request("PATCH", f"/users/{user_id}", json=kwargs)
+        return await self._request("PATCH", f"/users/{user_id}", json=kwargs)
 
     # --- Events ---
 
-    def get_events(
+    async def get_events(
         self,
         skip: int = 0,
         limit: int = 10,
@@ -180,9 +179,9 @@ class APIClient:
             params["date_from"] = date_from
         if date_to:
             params["date_to"] = date_to
-        return self._request("GET", "/events", params=params)
+        return await self._request("GET", "/events", params=params)
 
-    def search_events(
+    async def search_events(
         self,
         sport_type: str | None = None,
         date_from: str | None = None,
@@ -203,7 +202,7 @@ class APIClient:
         Returns:
             Список мероприятий
         """
-        return self._request(
+        return await self._request(
             "POST",
             "/events/search",
             json={
@@ -215,7 +214,7 @@ class APIClient:
             },
         )
 
-    def get_event(self, event_id: int) -> dict[str, Any] | None:
+    async def get_event(self, event_id: int) -> dict[str, Any] | None:
         """
         Получить мероприятие по ID.
 
@@ -226,13 +225,13 @@ class APIClient:
             Данные мероприятия или None
         """
         try:
-            return self._request("GET", f"/events/{event_id}")
+            return await self._request("GET", f"/events/{event_id}")
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
             raise
 
-    def create_event(
+    async def create_event(
         self,
         title: str,
         date: str,
@@ -265,7 +264,7 @@ class APIClient:
         Returns:
             Созданное мероприятие
         """
-        return self._request(
+        return await self._request(
             "POST",
             "/events",
             json={
@@ -283,7 +282,7 @@ class APIClient:
             },
         )
 
-    def delete_event(self, event_id: int) -> bool:
+    async def delete_event(self, event_id: int) -> bool:
         """
         Удалить мероприятие.
 
@@ -294,7 +293,7 @@ class APIClient:
             True если удалено
         """
         try:
-            self._request("DELETE", f"/events/{event_id}")
+            await self._request("DELETE", f"/events/{event_id}")
             return True
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
@@ -303,7 +302,7 @@ class APIClient:
 
     # --- Participants ---
 
-    def join_event(self, event_id: int, user_id: int) -> dict[str, Any] | None:
+    async def join_event(self, event_id: int, user_id: int) -> dict[str, Any] | None:
         """
         Присоединиться к мероприятию.
 
@@ -315,7 +314,7 @@ class APIClient:
             Данные участия или None если уже участвует
         """
         try:
-            return self._request(
+            return await self._request(
                 "POST",
                 f"/events/{event_id}/participants/{user_id}",
             )
@@ -324,7 +323,7 @@ class APIClient:
                 return None
             raise
 
-    def leave_event(self, event_id: int, user_id: int) -> bool:
+    async def leave_event(self, event_id: int, user_id: int) -> bool:
         """
         Покинуть мероприятие.
 
@@ -336,14 +335,14 @@ class APIClient:
             True если покинул
         """
         try:
-            self._request("DELETE", f"/events/{event_id}/participants/{user_id}")
+            await self._request("DELETE", f"/events/{event_id}/participants/{user_id}")
             return True
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return False
             raise
 
-    def get_user_events(self, user_id: int) -> list[dict[str, Any]]:
+    async def get_user_events(self, user_id: int) -> list[dict[str, Any]]:
         """
         Получить мероприятия пользователя (где он участник).
 
@@ -353,9 +352,9 @@ class APIClient:
         Returns:
             Список мероприятий
         """
-        return self._request("GET", f"/events/user/{user_id}")
+        return await self._request("GET", f"/events/user/{user_id}")
 
-    def get_created_events(self, creator_id: int) -> list[dict[str, Any]]:
+    async def get_created_events(self, creator_id: int) -> list[dict[str, Any]]:
         """
         Получить созданные пользователем мероприятия.
 
@@ -365,11 +364,11 @@ class APIClient:
         Returns:
             Список мероприятий
         """
-        return self.get_events(creator_id=creator_id, limit=100)
+        return await self.get_events(creator_id=creator_id, limit=100)
 
     # --- Заявки на участие ---
 
-    def apply_to_event(self, event_id: int, user_id: int) -> dict[str, Any] | None:
+    async def apply_to_event(self, event_id: int, user_id: int) -> dict[str, Any] | None:
         """
         Подать заявку на участие в мероприятии.
 
@@ -381,13 +380,13 @@ class APIClient:
             Данные заявки или None если ошибка
         """
         try:
-            return self._request("POST", f"/events/{event_id}/apply", params={"user_id": user_id})
+            return await self._request("POST", f"/events/{event_id}/apply", params={"user_id": user_id})
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 400:
                 return None
             raise
 
-    def get_event_applications(
+    async def get_event_applications(
         self, event_id: int, status: str | None = None
     ) -> list[dict[str, Any]]:
         """
@@ -403,9 +402,9 @@ class APIClient:
         params = {}
         if status:
             params["status"] = status
-        return self._request("GET", f"/events/{event_id}/applications", params=params)
+        return await self._request("GET", f"/events/{event_id}/applications", params=params)
 
-    def get_user_applications(
+    async def get_user_applications(
         self, user_id: int, status: str | None = None
     ) -> list[dict[str, Any]]:
         """
@@ -421,9 +420,9 @@ class APIClient:
         params = {}
         if status:
             params["status"] = status
-        return self._request("GET", f"/events/applications/user/{user_id}", params=params)
+        return await self._request("GET", f"/events/applications/user/{user_id}", params=params)
 
-    def review_application(self, application_id: int, status: str) -> dict[str, Any]:
+    async def review_application(self, application_id: int, status: str) -> dict[str, Any]:
         """
         Рассмотреть заявку (подтвердить/отклонить).
 
@@ -434,13 +433,13 @@ class APIClient:
         Returns:
             Обновлённая заявка
         """
-        return self._request(
+        return await self._request(
             "PATCH", f"/events/applications/{application_id}", json={"status": status}
         )
 
-    def close(self):
+    async def close(self):
         """Закрыть соединение."""
-        self.client.close()
+        await self.client.aclose()
 
 
 # Глобальный экземпляр клиента
