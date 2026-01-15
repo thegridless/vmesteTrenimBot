@@ -5,9 +5,8 @@ HTTP клиент для взаимодействия с Backend API.
 from typing import Any
 
 import httpx
-from loguru import logger
-
 from config import settings
+from loguru import logger
 
 
 class APIClient:
@@ -380,7 +379,9 @@ class APIClient:
             Данные заявки или None если ошибка
         """
         try:
-            return await self._request("POST", f"/events/{event_id}/apply", params={"user_id": user_id})
+            return await self._request(
+                "POST", f"/events/{event_id}/apply", params={"user_id": user_id}
+            )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 400:
                 return None

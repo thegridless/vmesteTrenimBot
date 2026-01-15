@@ -5,13 +5,23 @@ SQLAlchemy модель пользователя.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, BigInteger, DateTime, Integer, String, Text, func
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Table, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
 if TYPE_CHECKING:
     from src.events.models import Event, EventApplication, EventParticipant
+    from src.sports.models import Sport
+
+
+# Промежуточная таблица для связи many-to-many между User и Sport
+user_sports = Table(
+    "user_sports",
+    Base.metadata,
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("sport_id", ForeignKey("sports.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class User(Base):
@@ -26,7 +36,7 @@ class User(Base):
         age: Возраст пользователя
         gender: Пол (male/female/other)
         city: Город
-        sports: Список видов спорта (JSON массив)
+        sports: Список видов спорта (many-to-many связь со Sport)
         note: Примечание/описание пользователя
         avatar_url: URL аватарки
         created_at: Дата регистрации
@@ -46,7 +56,6 @@ class User(Base):
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(20), nullable=True)  # male, female, other
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    sports: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # Список видов спорта
     note: Mapped[str | None] = mapped_column(Text, nullable=True)  # Примечание пользователя
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)  # URL аватарки
     created_at: Mapped[datetime] = mapped_column(
@@ -72,6 +81,14 @@ class User(Base):
     event_applications: Mapped[list["EventApplication"]] = relationship(
         "EventApplication",
         back_populates="user",
+        lazy="selectin",
+    )
+
+    # Связь с видами спорта (many-to-many)
+    sports: Mapped[list["Sport"]] = relationship(
+        "Sport",
+        secondary=user_sports,
+        back_populates="users",
         lazy="selectin",
     )
 

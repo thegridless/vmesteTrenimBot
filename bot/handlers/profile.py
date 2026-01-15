@@ -2,12 +2,13 @@
 Обработчики профиля пользователя.
 """
 
-from loguru import logger
-from telebot import TeleBot
-from telebot.types import Message
+import asyncio
 
 from api_client import api_client
 from keyboards import get_main_menu_keyboard
+from loguru import logger
+from telebot import TeleBot
+from telebot.types import Message
 from utils import safe_handler
 
 
@@ -24,15 +25,17 @@ def register_profile_handlers(bot: TeleBot):
     @safe
     def profile(message: Message):
         """Показать и редактировать профиль."""
-        user_tg = message.from_user
-        logger.info(f"👤 Команда 'Профиль' от @{user_tg.username} (id={user_tg.id})")
+        asyncio.run(_profile_async(message))
 
-        user = api_client.get_user_by_telegram_id(user_tg.id)
+    async def _profile_async(message: Message):
+        """Async реализация profile."""
+        logger.info(f"👤 Профиль от @{message.from_user.username or message.from_user.id}")
+
+        user = await api_client.get_user_by_telegram_id(message.from_user.id)
         if not user:
             bot.send_message(message.chat.id, "❌ Пользователь не найден. Используйте /start")
             return
 
-        # Формируем текст профиля
         text = "<b>👤 Ваш профиль</b>\n\n"
         text += f"📛 Имя: {user['first_name']}\n"
         if user.get("username"):
@@ -50,8 +53,7 @@ def register_profile_handlers(bot: TeleBot):
             text += f"📝 Примечание: {user['note']}\n"
         text += f"📅 Зарегистрирован: {user['created_at'][:10]}\n"
 
-        # Проверяем, заполнен ли профиль
         if not user.get("age") or not user.get("city"):
-            text += "\n⚠️ Профиль не полностью заполнен. Используйте /register"
+            text += "\n⚠️ Профиль не заполнен. Используйте /register"
 
         bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())

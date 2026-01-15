@@ -4,9 +4,8 @@
 
 import sys
 
-from loguru import logger
-
 from config import settings
+from loguru import logger
 
 
 def setup_logger():

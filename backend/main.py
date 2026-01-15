@@ -8,13 +8,11 @@ import uvicorn
 from fastapi import FastAPI, Request
 from loguru import logger
 
-# Админ-панель
 from src.admin import setup_admin
 from src.config import settings
 from src.database import Base, engine
 from src.events.router import router as events_router
-
-# Импортируем модели для создания таблиц
+from src.sports.router import router as sports_router
 from src.users.router import router as users_router
 
 
@@ -51,6 +49,7 @@ app = FastAPI(
 
 # Подключаем роутеры
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(sports_router, prefix="/api/v1")
 app.include_router(events_router, prefix="/api/v1")
 
 # Настраиваем админ-панель

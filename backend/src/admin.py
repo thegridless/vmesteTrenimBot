@@ -9,6 +9,7 @@ from starlette.requests import Request
 from src.config import settings
 from src.database import engine
 from src.events.models import Event, EventApplication, EventParticipant
+from src.sports.models import Sport
 from src.users.models import User
 
 
@@ -64,6 +65,7 @@ class AdminAuth(AuthenticationBackend):
             True если пользователь авторизован
         """
         return request.session.get("admin_authenticated", False)
+
 
 authentication_backend = AdminAuth(secret_key=settings.admin_secret_key)
 
@@ -187,6 +189,32 @@ class EventParticipantAdmin(ModelView, model=EventParticipant):
     }
 
 
+class SportAdmin(ModelView, model=Sport):
+    """
+    Админ-панель для управления видами спорта.
+    """
+
+    name = "Вид спорта"
+    name_plural = "Виды спорта"
+    icon = "fa-solid fa-dumbbell"
+
+    column_list = [Sport.id, Sport.name, Sport.active]
+    column_searchable_list = [Sport.name]
+    column_sortable_list = [Sport.id, Sport.name, Sport.active]
+    column_details_list = [Sport.id, Sport.name, Sport.active]
+
+    can_create = True
+    can_edit = True
+    can_delete = True
+    can_view_details = True
+
+    column_labels = {
+        Sport.id: "ID",
+        Sport.name: "Название",
+        Sport.active: "Активен",
+    }
+
+
 def setup_admin(app) -> Admin:
     """
     Настройка и создание админ-панели.
@@ -207,6 +235,7 @@ def setup_admin(app) -> Admin:
 
     # Регистрируем модели
     admin.add_view(UserAdmin)
+    admin.add_view(SportAdmin)
     admin.add_view(EventAdmin)
     admin.add_view(EventParticipantAdmin)
 

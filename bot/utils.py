@@ -27,7 +27,7 @@ def safe_handler(bot: TeleBot):
                 return func(update, *args, **kwargs)
             except Exception as e:
                 logger.error(f"Ошибка в {func.__name__}: {e}", exc_info=settings.debug)
-                
+
                 # Определяем тип обновления (Message или CallbackQuery)
                 if isinstance(update, Message):
                     chat_id = update.chat.id
@@ -38,7 +38,9 @@ def safe_handler(bot: TeleBot):
                 elif isinstance(update, CallbackQuery):
                     bot.answer_callback_query(update.id, "❌ Произошла ошибка")
                     if settings.debug:
-                        bot.send_message(update.message.chat.id, f"❌ Ошибка: {type(e).__name__}: {str(e)}")
+                        bot.send_message(
+                            update.message.chat.id, f"❌ Ошибка: {type(e).__name__}: {str(e)}"
+                        )
 
         return wrapper
 

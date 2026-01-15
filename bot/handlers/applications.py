@@ -125,16 +125,20 @@ def register_applications_handlers(bot: TeleBot):
         applicant = await api_client.get_user_by_id(application["user_id"])
 
         bot.answer_callback_query(call.id, "❌ Заявка отклонена")
-        
+
         # Убираем кнопки
         try:
-            bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+            bot.edit_message_reply_markup(
+                call.message.chat.id, call.message.message_id, reply_markup=None
+            )
         except Exception:
-            pass
+            logger.exception("Не удалось удалить кнопки")
 
         # Уведомляем участника
         if applicant and applicant.get("telegram_id"):
             try:
-                bot.send_message(applicant["telegram_id"], "❌ К сожалению, ваша заявка была отклонена.")
+                bot.send_message(
+                    applicant["telegram_id"], "❌ К сожалению, ваша заявка была отклонена."
+                )
             except Exception as e:
                 logger.error(f"Не удалось уведомить участника: {e}")
