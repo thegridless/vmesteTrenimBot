@@ -5,19 +5,19 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
 from src.config import settings
 from src.database import Base
-
-# Импортируем модели для автогенерации миграций
+from src.events import models as events_models  # noqa: F401
+from src.sports import models as sports_models  # noqa: F401
+from src.users import models as users_models  # noqa: F401
 
 config = context.config
 
-# Устанавливаем URL базы данных из конфига
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:

@@ -10,7 +10,7 @@ from loguru import logger
 
 from src.admin import setup_admin
 from src.config import settings
-from src.database import Base, engine
+from src.database import engine
 from src.events.router import router as events_router
 from src.sports.router import router as sports_router
 from src.users.router import router as users_router
@@ -24,11 +24,6 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     """
     logger.info("🚀 Запуск приложения...")
 
-    # При запуске - создаём таблицы если не существуют
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    logger.info("✅ База данных инициализирована")
     logger.info(f"📡 API доступен на http://{settings.api_host}:{settings.api_port}")
 
     yield

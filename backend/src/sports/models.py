@@ -2,9 +2,10 @@
 Модели для видов спорта.
 """
 
-from database import Base
 from sqlalchemy import Boolean, Column, Integer, String
 from sqlalchemy.orm import relationship
+
+from src.database import Base
 
 
 class Sport(Base):
@@ -27,5 +28,8 @@ class Sport(Base):
     events = relationship("Event", back_populates="sport")
     users = relationship("User", secondary="user_sports", back_populates="sports")
 
-    def __repr__(self):
+    def __str__(self) -> str:
         return f"<Sport(id={self.id}, name='{self.name}', active={self.active})>"
+
+    def __repr__(self) -> str:
+        return self.__str__()

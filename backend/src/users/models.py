@@ -92,5 +92,8 @@ class User(Base):
         lazy="selectin",
     )
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username={self.username})>"
+
+    def __repr__(self) -> str:
+        return self.__str__()
