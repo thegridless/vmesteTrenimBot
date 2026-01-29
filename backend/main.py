@@ -8,14 +8,15 @@ import uvicorn
 from fastapi import FastAPI, Request
 from loguru import logger
 
-# Админ-панель
 from src.admin import setup_admin
+from src.admin_api.router import router as admin_api_router
+from src.broadcasts.router import router as broadcasts_router
 from src.config import settings
-from src.database import Base, engine
+from src.database import engine
 from src.events.router import router as events_router
-
-# Импортируем модели для создания таблиц
+from src.sports.router import router as sports_router
 from src.users.router import router as users_router
+from src.weights.router import router as weights_router
 
 
 @asynccontextmanager
@@ -26,11 +27,6 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     """
     logger.info("🚀 Запуск приложения...")
 
-    # При запуске - создаём таблицы если не существуют
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    logger.info("✅ База данных инициализирована")
     logger.info(f"📡 API доступен на http://{settings.api_host}:{settings.api_port}")
 
     yield
@@ -51,7 +47,11 @@ app = FastAPI(
 
 # Подключаем роутеры
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(sports_router, prefix="/api/v1")
 app.include_router(events_router, prefix="/api/v1")
+app.include_router(weights_router, prefix="/api/v1")
+app.include_router(admin_api_router, prefix="/api/v1")
+app.include_router(broadcasts_router, prefix="/api/v1")
 
 # Настраиваем админ-панель
 admin = setup_admin(app)

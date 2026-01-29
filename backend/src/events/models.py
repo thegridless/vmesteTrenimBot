@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
+    from src.sports.models import Sport
     from src.users.models import User
 
 
@@ -26,7 +27,7 @@ class Event(Base):
         location: Место проведения (текст)
         latitude: Широта (геолокация)
         longitude: Долгота (геолокация)
-        sport_type: Вид спорта
+        sport_id: ID вида спорта (FK на Sport)
         max_participants: Максимальное количество участников
         fee: Взнос (опционально)
         note: Примечание создателя
@@ -43,9 +44,11 @@ class Event(Base):
     location: Mapped[str | None] = mapped_column(String(500), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)  # Геолокация
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)  # Геолокация
-    sport_type: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, index=True
-    )  # Вид спорта
+    sport_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sports.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )  # ID вида спорта
     max_participants: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # Количество человек
@@ -65,6 +68,13 @@ class Event(Base):
     creator: Mapped["User"] = relationship(
         "User",
         back_populates="created_events",
+        lazy="selectin",
+    )
+
+    # Связь с видом спорта
+    sport: Mapped["Sport | None"] = relationship(
+        "Sport",
+        back_populates="events",
         lazy="selectin",
     )
 

@@ -6,9 +6,11 @@ from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
+from src.broadcasts.models import Broadcast
 from src.config import settings
 from src.database import engine
 from src.events.models import Event, EventApplication, EventParticipant
+from src.sports.models import Sport
 from src.users.models import User
 
 
@@ -65,6 +67,7 @@ class AdminAuth(AuthenticationBackend):
         """
         return request.session.get("admin_authenticated", False)
 
+
 authentication_backend = AdminAuth(secret_key=settings.admin_secret_key)
 
 
@@ -77,7 +80,14 @@ class UserAdmin(ModelView, model=User):
     name_plural = "Пользователи"
     icon = "fa-solid fa-user"
 
-    column_list = [User.id, User.telegram_id, User.username, User.first_name, User.created_at]
+    column_list = [
+        User.id,
+        User.telegram_id,
+        User.username,
+        User.first_name,
+        User.is_admin,
+        User.created_at,
+    ]
     column_searchable_list = [User.telegram_id, User.username, User.first_name]
     column_sortable_list = [User.id, User.telegram_id, User.created_at]
     column_details_list = [
@@ -85,6 +95,7 @@ class UserAdmin(ModelView, model=User):
         User.telegram_id,
         User.username,
         User.first_name,
+        User.is_admin,
         User.created_at,
     ]
 
@@ -99,6 +110,7 @@ class UserAdmin(ModelView, model=User):
         User.telegram_id: "Telegram ID",
         User.username: "Username",
         User.first_name: "Имя",
+        User.is_admin: "Администратор",
         User.created_at: "Дата регистрации",
     }
 
@@ -187,6 +199,83 @@ class EventParticipantAdmin(ModelView, model=EventParticipant):
     }
 
 
+class SportAdmin(ModelView, model=Sport):
+    """
+    Админ-панель для управления видами спорта.
+    """
+
+    name = "Вид спорта"
+    name_plural = "Виды спорта"
+    icon = "fa-solid fa-dumbbell"
+
+    column_list = [Sport.id, Sport.name, Sport.active]
+    column_searchable_list = [Sport.name]
+    column_sortable_list = [Sport.id, Sport.name, Sport.active]
+    column_details_list = [Sport.id, Sport.name, Sport.active]
+
+    can_create = True
+    can_edit = True
+    can_delete = True
+    can_view_details = True
+
+    column_labels = {
+        Sport.id: "ID",
+        Sport.name: "Название",
+        Sport.active: "Активен",
+    }
+
+
+class BroadcastAdmin(ModelView, model=Broadcast):
+    """
+    Админ-панель для управления рассылками.
+    """
+
+    name = "Рассылка"
+    name_plural = "Рассылки"
+    icon = "fa-solid fa-bullhorn"
+
+    column_list = [
+        Broadcast.id,
+        Broadcast.admin_user_id,
+        Broadcast.status,
+        Broadcast.total_count,
+        Broadcast.success_count,
+        Broadcast.fail_count,
+        Broadcast.created_at,
+        Broadcast.completed_at,
+    ]
+    column_searchable_list = [Broadcast.text]
+    column_sortable_list = [Broadcast.id, Broadcast.created_at, Broadcast.completed_at]
+    column_details_list = [
+        Broadcast.id,
+        Broadcast.admin_user_id,
+        Broadcast.text,
+        Broadcast.status,
+        Broadcast.total_count,
+        Broadcast.success_count,
+        Broadcast.fail_count,
+        Broadcast.created_at,
+        Broadcast.completed_at,
+    ]
+
+    can_create = True
+    can_edit = True
+    can_delete = True
+    can_view_details = True
+
+    column_labels = {
+        Broadcast.id: "ID",
+        Broadcast.admin_user_id: "Админ",
+        Broadcast.text: "Текст",
+        Broadcast.status: "Статус",
+        Broadcast.total_count: "Всего",
+        Broadcast.success_count: "Успешно",
+        Broadcast.fail_count: "Ошибки",
+        Broadcast.created_at: "Создано",
+        Broadcast.completed_at: "Завершено",
+    }
+
+
 def setup_admin(app) -> Admin:
     """
     Настройка и создание админ-панели.
@@ -207,8 +296,10 @@ def setup_admin(app) -> Admin:
 
     # Регистрируем модели
     admin.add_view(UserAdmin)
+    admin.add_view(SportAdmin)
     admin.add_view(EventAdmin)
     admin.add_view(EventParticipantAdmin)
+    admin.add_view(BroadcastAdmin)
 
     # Добавляем админку для заявок
     class EventApplicationAdmin(ModelView, model=EventApplication):

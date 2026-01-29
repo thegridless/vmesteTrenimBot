@@ -21,9 +21,9 @@ def log_message_middleware(bot: TeleBot) -> None:
         user = message.from_user
         if not user:
             return
-        
+
         username = f"@{user.username}" if user.username else f"id{user.id}"
-        
+
         # Логируем команды
         if message.text and message.text.startswith("/"):
             logger.info(f"📨 {message.text} от {username}")

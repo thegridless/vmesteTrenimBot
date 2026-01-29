@@ -41,6 +41,7 @@ class UserResponse(UserBase):
     """Схема ответа с данными пользователя."""
 
     id: int
+    is_admin: bool = False
     age: int | None = None
     gender: str | None = None
     city: str | None = None

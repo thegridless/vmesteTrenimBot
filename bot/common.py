@@ -5,6 +5,7 @@
 from enum import StrEnum
 from typing import Any
 
+from keyboards import get_main_menu_keyboard
 from loguru import logger
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -12,7 +13,7 @@ from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 class SportType(StrEnum):
     """Виды спорта."""
-    
+
     FOOTBALL = "Футбол"
     BASKETBALL = "Баскетбол"
     VOLLEYBALL = "Волейбол"
@@ -28,16 +29,18 @@ class SportType(StrEnum):
 def get_sport_keyboard(callback_prefix: str = "sport_") -> InlineKeyboardMarkup:
     """
     Создать клавиатуру выбора видов спорта.
-    
+
     Args:
         callback_prefix: Префикс для callback_data
-        
+
     Returns:
         InlineKeyboardMarkup с кнопками видов спорта
     """
     keyboard = InlineKeyboardMarkup(row_width=2)
     for sport in SportType:
-        keyboard.add(InlineKeyboardButton(sport.value, callback_data=f"{callback_prefix}{sport.value}"))
+        keyboard.add(
+            InlineKeyboardButton(sport.value, callback_data=f"{callback_prefix}{sport.value}")
+        )
     return keyboard
 
 
@@ -49,13 +52,13 @@ async def get_user_or_error(
 ) -> dict[str, Any] | None:
     """
     Получить пользователя или отправить сообщение об ошибке.
-    
+
     Args:
         api_client: Экземпляр APIClient
         bot: Экземпляр TeleBot
         telegram_id: ID пользователя в Telegram
         chat_id: ID чата
-        
+
     Returns:
         Данные пользователя или None если не найден
     """
@@ -74,72 +77,125 @@ async def get_user_or_error(
 def format_event_text(event: dict[str, Any], include_description: bool = False) -> str:
     """
     Форматировать текст информации о событии.
-    
+
     Args:
         event: Данные события
         include_description: Включить описание события
-        
+
     Returns:
         Отформатированный текст
     """
     text = f"🏋️ <b>{event['title']}</b>\n"
     text += f"📅 {event['date'][:16]}\n"
-    
+
     if include_description and event.get("description"):
         text += f"📝 {event['description']}\n"
-    
+
     if event.get("location"):
         text += f"📍 {event['location']}\n"
-    
+
     if event.get("sport_type"):
         text += f"⚽ {event['sport_type']}\n"
-    
+
     if event.get("max_participants"):
         text += f"👥 До {event['max_participants']} чел.\n"
-    
+
     if event.get("fee"):
         text += f"💰 {event['fee']} руб.\n"
-    
+
     return text
+
+
+async def get_admin_or_error(
+    api_client,
+    bot: TeleBot,
+    telegram_id: int,
+    chat_id: int,
+) -> dict[str, Any] | None:
+    """
+    Получить администратора или отправить сообщение об ошибке.
+
+    Args:
+        api_client: Экземпляр APIClient
+        bot: Экземпляр TeleBot
+        telegram_id: ID пользователя в Telegram
+        chat_id: ID чата
+
+    Returns:
+        Данные пользователя или None если нет прав администратора
+    """
+    user = await get_user_or_error(api_client, bot, telegram_id, chat_id)
+    if not user:
+        return None
+    if not user.get("is_admin"):
+        bot.send_message(chat_id, "❌ Доступ только для администратора.")
+        return None
+    return user
+
+
+async def get_main_menu_keyboard_for_user(api_client, telegram_id: int):
+    """
+    Получить клавиатуру главного меню с учётом прав администратора.
+
+    Args:
+        api_client: Экземпляр APIClient
+        telegram_id: ID пользователя в Telegram
+
+    Returns:
+        ReplyKeyboardMarkup с кнопками меню
+    """
+    try:
+        user = await api_client.get_user_by_telegram_id(telegram_id)
+    except Exception:
+        user = None
+    is_admin = bool(user and user.get("is_admin"))
+    return get_main_menu_keyboard(is_admin=is_admin)
 
 
 def format_user_info(user: dict[str, Any], include_username: bool = True) -> str:
     """
     Форматировать информацию о пользователе.
-    
+
     Args:
         user: Данные пользователя
         include_username: Включить username
-        
+
     Returns:
         Отформатированный текст
     """
     text = f"👤 {user['first_name']}"
-    
+
     if include_username and user.get("username"):
         text += f" @{user['username']}"
-    
+
     if user.get("age"):
         text += f", {user['age']} лет"
-    
+
     if user.get("city"):
         text += f"\n📍 {user['city']}"
-    
+
     return text
 
 
-def format_application_text(event: dict[str, Any], applicant: dict[str, Any]) -> str:
+def format_application_text(
+    event: dict[str, Any],
+    applicant: dict[str, Any],
+    status: str | None = None,
+) -> str:
     """
     Форматировать текст заявки на участие.
-    
+
     Args:
         event: Данные события
         applicant: Данные заявителя
-        
+        status: Текущий статус заявки
+
     Returns:
         Отформатированный текст заявки
     """
     text = "<b>📝 Заявка на тренировку:</b>\n"
     text += f"🏋️ <b>{event['title']}</b>\n\n"
     text += format_user_info(applicant, include_username=False)
+    if status:
+        text += f"\nСтатус: {status}"
     return text
