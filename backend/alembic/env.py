@@ -15,6 +15,7 @@ from src.database import Base
 from src.events import models as events_models  # noqa: F401
 from src.sports import models as sports_models  # noqa: F401
 from src.users import models as users_models  # noqa: F401
+from src.weights import models as weights_models  # noqa: F401
 
 config = context.config
 

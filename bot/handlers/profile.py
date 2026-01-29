@@ -56,4 +56,8 @@ def register_profile_handlers(bot: TeleBot):
         if not user.get("age") or not user.get("city"):
             text += "\n⚠️ Профиль не заполнен. Используйте /register"
 
-        bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
+        bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
+        )

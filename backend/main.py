@@ -9,11 +9,14 @@ from fastapi import FastAPI, Request
 from loguru import logger
 
 from src.admin import setup_admin
+from src.admin_api.router import router as admin_api_router
+from src.broadcasts.router import router as broadcasts_router
 from src.config import settings
 from src.database import engine
 from src.events.router import router as events_router
 from src.sports.router import router as sports_router
 from src.users.router import router as users_router
+from src.weights.router import router as weights_router
 
 
 @asynccontextmanager
@@ -46,6 +49,9 @@ app = FastAPI(
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(sports_router, prefix="/api/v1")
 app.include_router(events_router, prefix="/api/v1")
+app.include_router(weights_router, prefix="/api/v1")
+app.include_router(admin_api_router, prefix="/api/v1")
+app.include_router(broadcasts_router, prefix="/api/v1")
 
 # Настраиваем админ-панель
 admin = setup_admin(app)

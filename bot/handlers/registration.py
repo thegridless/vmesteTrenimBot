@@ -11,12 +11,7 @@ from loguru import logger
 from states import RegistrationStates
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from utils import (
-    create_callback_state_checker,
-    create_state_checker,
-    safe_callback,
-    safe_handler,
-)
+from utils import safe_callback, safe_handler
 
 
 def register_registration_handlers(bot: TeleBot):
@@ -58,7 +53,7 @@ def register_registration_handlers(bot: TeleBot):
             bot.send_message(
                 message.chat.id,
                 "✅ Вы уже зарегистрированы!\nИспользуйте /profile для просмотра.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(api_user.get("is_admin"))),
             )
             return
 
@@ -70,23 +65,12 @@ def register_registration_handlers(bot: TeleBot):
             "💡 Используйте /cancel для отмены",
         )
 
-    # Создаем функции проверки состояний
-    check_waiting_age_state = create_state_checker(bot, RegistrationStates.waiting_age)
-    check_waiting_city_state = create_state_checker(bot, RegistrationStates.waiting_city)
-    check_gender_callback = create_callback_state_checker(
-        bot, RegistrationStates.waiting_gender, "gender_"
-    )
-    check_sports_callback = create_callback_state_checker(
-        bot,
-        RegistrationStates.waiting_sports,
-        "sport_",
-        allowed_data=["sports_done"],  # Разрешаем "sports_done" без префикса
-    )
-
-    @bot.message_handler(func=check_waiting_age_state)
+    @bot.message_handler(state=RegistrationStates.waiting_age, content_types=["text"])
     @safe
     def process_age(message: Message):
         """Обработка возраста."""
+        if message.text and message.text.startswith("/"):
+            return
         try:
             age = int(message.text.strip())
             if not (10 <= age <= 100):
@@ -102,7 +86,10 @@ def register_registration_handlers(bot: TeleBot):
         bot.set_state(message.from_user.id, RegistrationStates.waiting_gender, message.chat.id)
         bot.send_message(message.chat.id, "Выберите ваш пол:", reply_markup=get_gender_keyboard())
 
-    @bot.callback_query_handler(func=check_gender_callback)
+    @bot.callback_query_handler(
+        state=RegistrationStates.waiting_gender,
+        func=lambda call: call.data.startswith("gender_"),
+    )
     @safe_cb
     def process_gender(call):
         """Обработка выбора пола."""
@@ -117,10 +104,12 @@ def register_registration_handlers(bot: TeleBot):
             call.message.chat.id, "В каком городе вы находитесь?\nОтправьте название города:"
         )
 
-    @bot.message_handler(func=check_waiting_city_state)
+    @bot.message_handler(state=RegistrationStates.waiting_city, content_types=["text"])
     @safe
     def process_city(message: Message):
         """Обработка города."""
+        if message.text and message.text.startswith("/"):
+            return
         if not message.text or len(message.text.strip()) < 2:
             bot.send_message(message.chat.id, "❌ Введите корректное название города")
             return
@@ -135,7 +124,10 @@ def register_registration_handlers(bot: TeleBot):
             reply_markup=get_sports_keyboard(),
         )
 
-    @bot.callback_query_handler(func=check_sports_callback)
+    @bot.callback_query_handler(
+        state=RegistrationStates.waiting_sports,
+        func=lambda call: call.data.startswith("sport_") or call.data == "sports_done",
+    )
     @safe_cb
     def process_sport_selection(call):
         """Обработка выбора видов спорта."""
@@ -172,10 +164,13 @@ def register_registration_handlers(bot: TeleBot):
 
                 bot.delete_state(call.from_user.id, call.message.chat.id)
                 bot.answer_callback_query(call.id, "✅ Готово!")
+                updated_user = await api_client.get_user_by_telegram_id(call.from_user.id)
                 bot.send_message(
                     call.message.chat.id,
                     "🎉 Профиль создан!\n\nТеперь вы можете:\n• Создавать тренировки\n• Искать тренировки\n• Редактировать профиль",
-                    reply_markup=get_main_menu_keyboard(),
+                    reply_markup=get_main_menu_keyboard(
+                        is_admin=bool(updated_user and updated_user.get("is_admin"))
+                    ),
                 )
         else:
             sport = call.data.replace("sport_", "")

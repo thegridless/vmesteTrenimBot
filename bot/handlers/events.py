@@ -12,13 +12,7 @@ from loguru import logger
 from states import EventCreationStates
 from telebot import TeleBot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from utils import (
-    check_state,
-    create_callback_state_checker,
-    create_state_checker,
-    safe_callback,
-    safe_handler,
-)
+from utils import safe_callback, safe_handler
 
 
 def register_events_handlers(bot: TeleBot):
@@ -31,19 +25,6 @@ def register_events_handlers(bot: TeleBot):
     # Создаём декораторы для безопасной обработки ошибок
     safe = safe_handler(bot)
     safe_cb = safe_callback(bot)
-
-    # Создаем функции проверки состояний
-    check_waiting_title = create_state_checker(bot, EventCreationStates.waiting_title)
-    check_waiting_date = create_state_checker(bot, EventCreationStates.waiting_date)
-    # check_waiting_location = create_state_checker(bot, EventCreationStates.waiting_location)
-    check_waiting_max_participants = create_state_checker(
-        bot, EventCreationStates.waiting_max_participants
-    )
-    check_waiting_fee = create_state_checker(bot, EventCreationStates.waiting_fee)
-    check_waiting_note = create_state_checker(bot, EventCreationStates.waiting_note)
-    check_event_sport_callback = create_callback_state_checker(
-        bot, EventCreationStates.waiting_sport_type, "event_sport_"
-    )
 
     @bot.message_handler(func=lambda m: m.text == "➕ Создать тренировку")
     @safe
@@ -66,7 +47,7 @@ def register_events_handlers(bot: TeleBot):
             bot.send_message(
                 message.chat.id,
                 "⚠️ Сначала заполните профиль!\nИспользуйте /register для регистрации.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
             )
             return
 
@@ -78,10 +59,12 @@ def register_events_handlers(bot: TeleBot):
             "💡 Используйте /cancel для отмены",
         )
 
-    @bot.message_handler(func=check_waiting_title)
+    @bot.message_handler(state=EventCreationStates.waiting_title, content_types=["text"])
     @safe
     def process_event_title(message: Message):
         """Обработка названия события."""
+        if message.text and message.text.startswith("/"):
+            return
         if not message.text or len(message.text.strip()) < 3:
             bot.send_message(message.chat.id, "❌ Название должно быть не менее 3 символов")
             return
@@ -97,10 +80,12 @@ def register_events_handlers(bot: TeleBot):
             "Например: 25.12.2024 18:00",
         )
 
-    @bot.message_handler(func=check_waiting_date)
+    @bot.message_handler(state=EventCreationStates.waiting_date, content_types=["text"])
     @safe
     def process_event_date(message: Message):
         """Обработка даты события."""
+        if message.text and message.text.startswith("/"):
+            return
         if not message.text:
             bot.send_message(message.chat.id, "❌ Отправьте дату в формате ДД.ММ.ГГГГ ЧЧ:ММ")
             return
@@ -127,24 +112,15 @@ def register_events_handlers(bot: TeleBot):
                 "❌ Неверный формат даты. Используйте: ДД.ММ.ГГГГ ЧЧ:ММ\nНапример: 25.12.2024 18:00",
             )
 
-    def check_waiting_location_with_types(message: Message) -> bool:
-        """Проверка состояния waiting_location с поддержкой text и location."""
-        if message.text and message.text.startswith("/"):
-            return False
-        if message.content_type not in ["text", "location"]:
-            return False
-        return check_state(
-            bot,
-            message.from_user.id,
-            message.chat.id,
-            EventCreationStates.waiting_location,
-            skip_commands=False,
-        )
-
-    @bot.message_handler(func=check_waiting_location_with_types)
+    @bot.message_handler(
+        state=EventCreationStates.waiting_location,
+        content_types=["text", "location"],
+    )
     @safe
     def process_event_location(message: Message):
         """Обработка места проведения."""
+        if message.text and message.text.startswith("/"):
+            return
         location = latitude = longitude = None
 
         if message.location:
@@ -168,7 +144,10 @@ def register_events_handlers(bot: TeleBot):
             reply_markup=get_sport_keyboard("event_sport_"),
         )
 
-    @bot.callback_query_handler(func=check_event_sport_callback)
+    @bot.callback_query_handler(
+        state=EventCreationStates.waiting_sport_type,
+        func=lambda call: call.data.startswith("event_sport_"),
+    )
     @safe_cb
     def process_event_sport_type(call):
         """Обработка выбора вида спорта."""
@@ -186,10 +165,15 @@ def register_events_handlers(bot: TeleBot):
             "👥 Сколько человек нужно?\n(отправьте число или '0' если без ограничений)",
         )
 
-    @bot.message_handler(func=check_waiting_max_participants)
+    @bot.message_handler(
+        state=EventCreationStates.waiting_max_participants,
+        content_types=["text"],
+    )
     @safe
     def process_event_max_participants(message: Message):
         """Обработка количества участников."""
+        if message.text and message.text.startswith("/"):
+            return
         try:
             max_participants = int(message.text)
             max_participants = None if max_participants <= 0 else max_participants
@@ -205,10 +189,12 @@ def register_events_handlers(bot: TeleBot):
             message.chat.id, "💰 Есть ли взнос?\n(отправьте сумму в рублях или '0' если бесплатно)"
         )
 
-    @bot.message_handler(func=check_waiting_fee)
+    @bot.message_handler(state=EventCreationStates.waiting_fee, content_types=["text"])
     @safe
     def process_event_fee(message: Message):
         """Обработка взноса."""
+        if message.text and message.text.startswith("/"):
+            return
         try:
             fee = float(message.text.replace(",", "."))
             fee = None if fee <= 0 else fee
@@ -224,10 +210,12 @@ def register_events_handlers(bot: TeleBot):
             message.chat.id, "📝 Добавьте примечание (опционально)\nИли отправьте 'пропустить'"
         )
 
-    @bot.message_handler(func=check_waiting_note)
+    @bot.message_handler(state=EventCreationStates.waiting_note, content_types=["text"])
     @safe
     def process_event_note(message: Message):
         """Обработка примечания и создание события."""
+        if message.text and message.text.startswith("/"):
+            return
         asyncio.run(_process_event_note_async(message))
 
     async def _process_event_note_async(message: Message):
@@ -256,7 +244,11 @@ def register_events_handlers(bot: TeleBot):
 
             bot.delete_state(message.from_user.id, message.chat.id)
             text = f"✅ Тренировка создана!\n\n{format_event_text(event)}"
-            bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
+            bot.send_message(
+                message.chat.id,
+                text,
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
+            )
 
     @bot.message_handler(func=lambda m: m.text == "🔍 Найти тренировку")
     @safe
@@ -282,7 +274,7 @@ def register_events_handlers(bot: TeleBot):
             bot.send_message(
                 message.chat.id,
                 "📭 Пока нет доступных тренировок.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
             )
             return
 
@@ -294,7 +286,9 @@ def register_events_handlers(bot: TeleBot):
             bot.send_message(message.chat.id, format_event_text(event), reply_markup=keyboard)
 
         bot.send_message(
-            message.chat.id, "Выберите действие:", reply_markup=get_main_menu_keyboard()
+            message.chat.id,
+            "Выберите действие:",
+            reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
         )
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("apply_"))
@@ -361,7 +355,7 @@ def register_events_handlers(bot: TeleBot):
             bot.send_message(
                 message.chat.id,
                 "📭 У вас пока нет тренировок.\nСоздайте свою или присоединитесь к существующей!",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
             )
             return
 
@@ -376,4 +370,8 @@ def register_events_handlers(bot: TeleBot):
             for event in participated[:5]:
                 text += f"🏋️ {event['title']} - {event['date'][:16]}\n"
 
-        bot.send_message(message.chat.id, text, reply_markup=get_main_menu_keyboard())
+        bot.send_message(
+            message.chat.id,
+            text,
+            reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
+        )

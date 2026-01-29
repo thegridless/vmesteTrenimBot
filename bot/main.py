@@ -9,6 +9,7 @@ from config import settings
 from handlers import register_all_handlers
 from loguru import logger
 from middleware import log_message_middleware
+from telebot.custom_filters import StateFilter
 
 from bot import bot
 
@@ -37,7 +38,8 @@ def main():
     if not asyncio.run(check_api_connection()):
         logger.warning("⚠️ Продолжаем запуск без проверки API")
 
-    # Регистрируем middleware и обработчики
+    # Регистрируем фильтры, middleware и обработчики
+    bot.add_custom_filter(StateFilter(bot))
     log_message_middleware(bot)
     register_all_handlers(bot)
 

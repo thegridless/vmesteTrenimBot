@@ -6,13 +6,14 @@
     "configurations": [
 
         {
-            "name": "Python Debugger: FastAPI",
+            "name": "Python Debugger: Backend",
             "type": "debugpy",
             "request": "launch",
             "args": ["--reload"],
             "program": "${workspaceFolder}/backend/main.py",
             "jinja": true,
             "cwd": "${workspaceFolder}/backend",
+            "consoleTitle": "Backend",
         },
         {
             "name": "Python Debugger: Bot",
@@ -22,6 +23,7 @@
             "program": "${workspaceFolder}/bot/main.py",
             "jinja": true,
             "cwd": "${workspaceFolder}/bot",
+            "consoleTitle": "Bot",
         }
     ]
 }

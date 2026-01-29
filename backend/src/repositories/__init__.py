@@ -3,9 +3,6 @@
 Инкапсулирует CRUD-операции и предоставляет абстракцию над SQLAlchemy.
 """
 
-from src.events.repository import EventRepository
-from src.repositories.base import BaseRepository
-from src.sports.repository import SportRepository
-from src.users.repository import UserRepository
+from .base import BaseRepository
 
-__all__ = ["BaseRepository", "UserRepository", "SportRepository", "EventRepository"]
+__all__ = ["BaseRepository"]

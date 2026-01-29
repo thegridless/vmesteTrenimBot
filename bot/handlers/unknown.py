@@ -2,11 +2,13 @@
 Обработчик неизвестных команд и сообщений.
 """
 
+import asyncio
+
+from api_client import api_client
+from common import get_main_menu_keyboard_for_user
 from loguru import logger
 from telebot import TeleBot
 from telebot.types import Message
-
-from keyboards import get_main_menu_keyboard
 
 
 def register_unknown_handlers(bot: TeleBot):
@@ -29,16 +31,22 @@ def register_unknown_handlers(bot: TeleBot):
 
         if current_state:
             bot.delete_state(user.id, message.chat.id)
+            keyboard = asyncio.run(
+                get_main_menu_keyboard_for_user(api_client, message.from_user.id)
+            )
             bot.send_message(
                 message.chat.id,
                 "❌ Процесс отменён.\n" "Используйте /start для возврата в главное меню.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=keyboard,
             )
         else:
+            keyboard = asyncio.run(
+                get_main_menu_keyboard_for_user(api_client, message.from_user.id)
+            )
             bot.send_message(
                 message.chat.id,
                 "Нет активного процесса для отмены.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=keyboard,
             )
 
     def check_no_state(message: Message) -> bool:
@@ -88,16 +96,22 @@ def register_unknown_handlers(bot: TeleBot):
 
         # Проверяем, не является ли это командой
         if message.text and message.text.startswith("/"):
+            keyboard = asyncio.run(
+                get_main_menu_keyboard_for_user(api_client, message.from_user.id)
+            )
             bot.send_message(
                 message.chat.id,
                 "❓ Неизвестная команда.\n\n"
                 "Используйте /help для списка доступных команд или выберите действие из меню:",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=keyboard,
             )
         else:
+            keyboard = asyncio.run(
+                get_main_menu_keyboard_for_user(api_client, message.from_user.id)
+            )
             bot.send_message(
                 message.chat.id,
                 "❓ Не понимаю эту команду.\n\n"
                 "Используйте /help для списка доступных команд или выберите действие из меню:",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=keyboard,
             )

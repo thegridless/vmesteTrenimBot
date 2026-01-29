@@ -44,7 +44,7 @@ def register_applications_handlers(bot: TeleBot):
             bot.send_message(
                 message.chat.id,
                 "📭 У вас пока нет созданных тренировок.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
             )
             return
 
@@ -60,19 +60,35 @@ def register_applications_handlers(bot: TeleBot):
                 if not applicant:
                     continue
 
-                text = format_application_text(event, applicant)
+                status_raw = (app.get("status") or "pending").lower()
+                status_map = {
+                    "pending": "⏳ ожидает",
+                    "approved": "✅ одобрена",
+                    "rejected": "❌ отклонена",
+                }
+                status_text = status_map.get(status_raw, "⏳ ожидает")
+                text = format_application_text(event, applicant, status=status_text)
                 keyboard = InlineKeyboardMarkup(row_width=2)
-                keyboard.add(
-                    InlineKeyboardButton("✅ Одобрить", callback_data=f"approve_{app['id']}"),
-                    InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app['id']}"),
-                )
+                if status_raw == "approved":
+                    keyboard.add(
+                        InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app['id']}"),
+                    )
+                elif status_raw == "rejected":
+                    keyboard.add(
+                        InlineKeyboardButton("✅ Одобрить", callback_data=f"approve_{app['id']}"),
+                    )
+                else:
+                    keyboard.add(
+                        InlineKeyboardButton("✅ Одобрить", callback_data=f"approve_{app['id']}"),
+                        InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{app['id']}"),
+                    )
                 bot.send_message(message.chat.id, text, reply_markup=keyboard)
 
         if not has_applications:
             bot.send_message(
                 message.chat.id,
                 "✅ Нет новых заявок на ваши тренировки.",
-                reply_markup=get_main_menu_keyboard(),
+                reply_markup=get_main_menu_keyboard(is_admin=bool(user.get("is_admin"))),
             )
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("approve_"))
@@ -95,6 +111,14 @@ def register_applications_handlers(bot: TeleBot):
             call.message.chat.id,
             f"✅ Заявка от {applicant['first_name']} одобрена!\nСобытие: {event['title']}",
         )
+
+        # Убираем кнопки
+        try:
+            bot.edit_message_reply_markup(
+                call.message.chat.id, call.message.message_id, reply_markup=None
+            )
+        except Exception:
+            logger.exception("Не удалось удалить кнопки")
 
         # Уведомляем участника
         if applicant and applicant.get("telegram_id"):

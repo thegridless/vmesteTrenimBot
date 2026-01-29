@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.events.models import Event, EventApplication, EventParticipant
 from src.events.schemas import EventApplicationCreate, EventCreate, EventUpdate
 from src.repositories.base import BaseRepository
+from src.sports.models import Sport
 
 
 class EventRepository(BaseRepository[Event]):
@@ -28,6 +29,23 @@ class EventRepository(BaseRepository[Event]):
             session: Асинхронная сессия БД
         """
         super().__init__(session, Event)
+
+    async def _resolve_sport_id(self, sport_type: str | None) -> int | None:
+        """
+        Найти sport_id по названию вида спорта.
+
+        Args:
+            sport_type: Название вида спорта
+
+        Returns:
+            ID вида спорта или None, если не найден
+        """
+        if not sport_type:
+            return None
+        query = select(Sport).where(Sport.name == sport_type)
+        result = await self.session.execute(query)
+        sport = result.scalar_one_or_none()
+        return sport.id if sport else None
 
     # --- Основные операции с Event ---
 
@@ -72,7 +90,8 @@ class EventRepository(BaseRepository[Event]):
         if creator_id is not None:
             conditions.append(Event.creator_id == creator_id)
         if sport_type is not None:
-            conditions.append(Event.sport_type == sport_type)
+            query = query.join(Sport, Event.sport_id == Sport.id)
+            conditions.append(Sport.name == sport_type)
         if date_from is not None:
             conditions.append(Event.date >= date_from)
         if date_to is not None:
@@ -110,7 +129,10 @@ class EventRepository(BaseRepository[Event]):
         Returns:
             Созданное мероприятие
         """
-        event = Event(**event_data.model_dump())
+        payload = event_data.model_dump()
+        sport_type = payload.pop("sport_type", None)
+        payload["sport_id"] = await self._resolve_sport_id(sport_type)
+        event = Event(**payload)
         return await self.add(event)
 
     async def update_event(self, event: Event, event_data: EventUpdate) -> Event:
@@ -125,6 +147,9 @@ class EventRepository(BaseRepository[Event]):
             Обновлённое мероприятие
         """
         update_data = event_data.model_dump(exclude_unset=True)
+        if "sport_type" in update_data:
+            sport_type = update_data.pop("sport_type")
+            update_data["sport_id"] = await self._resolve_sport_id(sport_type)
         return await self.update(event, update_data)
 
     async def delete_event(self, event: Event) -> None:
